@@ -53,6 +53,9 @@ App/        Translate (conversation), Phrasebook, Settings, onboarding
 Keyboard/   keyboard extension: UIKit key grid, swipe decoder + word lists, translation strip
 Shared/     translation pipeline, Apple Translation bridge, slang, notes, theme
 Config/     Info.plists and entitlements
+Tests/      Unit tests for the core (swift test)
 ```
+
+Run the core tests with `swift test`. CI also builds the app and keyboard for the iOS Simulator on every push.
 
 To teach Dilçi more shorthand, add lines to `Shared/Slang.swift`. Cultural notes live in `Shared/CultureNotes.swift`.

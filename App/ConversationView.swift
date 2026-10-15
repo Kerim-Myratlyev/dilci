@@ -118,6 +118,7 @@ struct ConversationView: View {
                     .padding(.vertical, 12)
                 }
                 .scrollDismissesKeyboard(.interactively)
+                .defaultScrollAnchor(model.lines.isEmpty ? .top : .bottom)
                 .background(Palette.canvas)
                 .onChange(of: model.lines.count) { _, _ in
                     if let last = model.lines.last {

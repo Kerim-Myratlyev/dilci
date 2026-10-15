@@ -17,6 +17,9 @@ final class PhraseStore: ObservableObject {
     }
 
     func reload() {
+        #if DEBUG
+        if DemoMode.isOn { items = DemoMode.phrases; return }
+        #endif
         items = Self.read(fileURL)
     }
 

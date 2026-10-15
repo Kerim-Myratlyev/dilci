@@ -26,6 +26,14 @@ final class ConversationModel: ObservableObject {
 
     private let speech = AVSpeechSynthesizer()
 
+    init() {
+        #if DEBUG
+        if DemoMode.isOn {
+            lines = DemoMode.conversation.map { ChatLine(mine: $0.mine, result: $0.result) }
+        }
+        #endif
+    }
+
     var canSend: Bool { !input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !loading }
 
     /// Their latest message, used as context for your reply.

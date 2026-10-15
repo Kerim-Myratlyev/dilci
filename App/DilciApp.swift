@@ -10,7 +10,7 @@ struct DilciApp: App {
     var body: some Scene {
         WindowGroup {
             Group {
-                if onboarded {
+                if onboarded || Self.skipOnboarding {
                     RootView()
                 } else {
                     OnboardingView { withAnimation(.easeInOut(duration: 0.3)) { onboarded = true } }
@@ -22,21 +22,41 @@ struct DilciApp: App {
             .translationHost()
         }
     }
+
+    private static var skipOnboarding: Bool {
+        #if DEBUG
+        return DemoMode.isOn
+        #else
+        return false
+        #endif
+    }
 }
 
 struct RootView: View {
+    static var initialTab: Int {
+        #if DEBUG
+        return DemoMode.tab
+        #else
+        return 0
+        #endif
+    }
+
     @EnvironmentObject private var phrases: PhraseStore
     @EnvironmentObject private var packs: LanguagePacks
     @Environment(\.scenePhase) private var scenePhase
+    @State private var tab = RootView.initialTab
 
     var body: some View {
-        TabView {
+        TabView(selection: $tab) {
             ConversationView()
                 .tabItem { Label("Translate", systemImage: "bubble.left.and.text.bubble.right") }
+                .tag(0)
             PhrasesView()
                 .tabItem { Label("Phrasebook", systemImage: "bookmark") }
+                .tag(1)
             SettingsView()
                 .tabItem { Label("Settings", systemImage: "gearshape") }
+                .tag(2)
         }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {
@@ -74,6 +94,12 @@ final class LanguagePacks: ObservableObject {
     }
 
     func refresh() async {
+        #if DEBUG
+        if DemoMode.isOn {
+            for pair in Self.pairs { states[pair] = .ready }
+            return
+        }
+        #endif
         for pair in Self.pairs where states[pair] != .downloading {
             let forward = await TranslationEngine.status(pair.from, pair.to)
             let back = await TranslationEngine.status(pair.to, pair.from)

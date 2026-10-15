@@ -1,0 +1,76 @@
+# Builds Dilçi for the iOS Simulator, launches it with sample data (-demo),
+# and captures each screen in light and dark mode. The PNGs are uploaded as
+# a workflow artifact; nothing is committed.
+name: Screenshots
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "App/**"
+      - "Shared/**"
+      - ".github/workflows/screenshots.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: screenshots
+  cancel-in-progress: true
+
+jobs:
+  capture:
+    runs-on: macos-15
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build for the simulator
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project Dilci.xcodeproj -target Dilci \
+            -sdk iphonesimulator -configuration Debug \
+            SYMROOT="$PWD/build" \
+            CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM= \
+            | tail -5
+          ls build/Debug-iphonesimulator/Dilci.app
+
+      - name: Boot an iPhone
+        run: |
+          RUNTIME=$(xcrun simctl list runtimes iOS -j | python3 -c "import json,sys; r=[x for x in json.load(sys.stdin)['runtimes'] if x['isAvailable']]; print(r[-1]['identifier'])")
+          TYPE=$(xcrun simctl list devicetypes -j | python3 -c "import json,sys; t=[d['identifier'] for d in json.load(sys.stdin)['devicetypes'] if d['name'] in ('iPhone 16 Pro','iPhone 15 Pro')]; print(t[0])")
+          UDID=$(xcrun simctl create shots "$TYPE" "$RUNTIME")
+          echo "UDID=$UDID" >> "$GITHUB_ENV"
+          xcrun simctl boot "$UDID"
+          xcrun simctl bootstatus "$UDID" -b
+          xcrun simctl status_bar "$UDID" override --time "9:41" --dataNetwork wifi --wifiBars 3 --cellularBars 4 --batteryState charged --batteryLevel 100
+          xcrun simctl install "$UDID" build/Debug-iphonesimulator/Dilci.app
+
+      - name: Capture
+        run: |
+          mkdir -p shots
+          APP=app.dilci.translate
+          shoot () {  # name, args...
+            local name=$1; shift
+            xcrun simctl terminate "$UDID" "$APP" 2>/dev/null || true
+            xcrun simctl launch "$UDID" "$APP" "$@" > /dev/null
+            sleep 6
+            xcrun simctl io "$UDID" screenshot "shots/$name.png"
+          }
+          for mode in light dark; do
+            xcrun simctl ui "$UDID" appearance "$mode"
+            sleep 2
+            shoot "$mode-translate"  -demo -tab 0
+            shoot "$mode-phrasebook" -demo -tab 1
+            shoot "$mode-settings"   -demo -tab 2
+            shoot "$mode-welcome"
+          done
+          ls -la shots
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: shots/*.png
+          retention-days: 30
